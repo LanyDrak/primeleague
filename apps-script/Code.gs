@@ -85,7 +85,7 @@ function installer() {
   // Formulaire de déclaration
   var fDecl = FormApp.create('Prime League : déclarer un match');
   fDecl.setDescription(
-    "Déclare le résultat d'un match 1v1 sur FC 27. Ton adversaire recevra un email pour le confirmer. " +
+    "Déclare le résultat d'un match 1v1. Ton adversaire recevra un email pour le confirmer. " +
     "Le match ne compte au classement qu'une fois confirmé.");
   fDecl.setConfirmationMessage("Merci ! Ton adversaire va recevoir un email pour confirmer le résultat.");
   fDecl.addListItem().setTitle(Q_JOUEUR).setRequired(true);
