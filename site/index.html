@@ -62,10 +62,13 @@
   h1 span { color: var(--accent); }
   .sub { color: var(--muted); margin-top: 2px; }
   .maj { color: var(--muted); font-size: 13px; text-align: right; }
-  .maj button {
-    margin-top: 4px; font: inherit; color: var(--accent); background: none;
-    border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer;
+  .cta {
+    display: inline-block; margin-bottom: 6px; padding: 10px 18px; border-radius: 8px;
+    background: var(--accent); color: var(--surface); font-weight: 700; font-size: 15px;
+    text-decoration: none; transition: opacity .15s;
   }
+  .cta:hover { opacity: .88; }
+  .cta:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
 
   .podium { display: grid; grid-template-columns: 1.5fr 1fr 1fr; align-items: end; gap: 12px; margin-bottom: 20px; }
   .podium .premier { padding: 18px 20px; }
@@ -155,6 +158,7 @@
     table { font-size: 14px; }
     td.rang { width: auto; }
     .masque-mobile { display: none; }
+    .maj { text-align: left; }
   }
 </style>
 </head>
@@ -166,8 +170,8 @@
       <div class="sub">Classement FIFA Interne Primelis</div>
     </div>
     <div class="maj">
+      <a class="cta" id="cta" href="#" target="_blank" rel="noopener">Déclarer un match</a>
       <div id="maj">Chargement…</div>
-      <button type="button" id="rafraichir">Actualiser</button>
     </div>
   </header>
 
@@ -219,6 +223,7 @@ var CONFIG = {
   csvMatchs: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR6Wxk46QnXyw97ugjLMoic_YzZChGf2Xy6iI8q44YOSTRAGAq-bZARTqUmmpTXOrtNXw3p0zbvWG8K/pub?gid=3&single=true&output=csv',       // onglet "Calcul ELO"
   dossierPhotos: 'photos/',  // une photo par joueur : photos/karim.jpg, photos/benoit.jpg…
   extensionPhotos: '.jpg',
+  lienFormulaire: 'https://docs.google.com/forms/d/1JfmqoJWoNIfwXcTMsEMyEuQcr-CF9FVWSoqKKPsAonU/viewform',
   nbDerniersMatchs: 10,
   rafraichissementMinutes: 5
 };
@@ -445,7 +450,7 @@ function afficher(classement, matchs) {
   }).join('');
 }
 
-document.getElementById('rafraichir').addEventListener('click', charger);
+document.getElementById('cta').href = CONFIG.lienFormulaire;
 charger();
 setInterval(charger, CONFIG.rafraichissementMinutes * 60 * 1000);
 </script>
