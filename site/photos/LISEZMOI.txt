@@ -1,0 +1,4 @@
+Déposer ici une photo par joueur, au format portrait 25/35 (par exemple 250 x 350 pixels).
+Nom du fichier : le prénom tel qu'il apparaît dans l'onglet Joueurs, en minuscules, sans accent,
+espaces remplacés par des tirets, en .jpg. Exemples : karim.jpg, benoit.jpg, jean-marc.jpg
+Si une photo manque, la page affiche les initiales du joueur à la place.

@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PrimeLeague</title>
+<style>
+  /* ------------------------------------------------------------------
+     Couleurs : modifiables ici (les visuels définitifs viendront plus tard)
+     ------------------------------------------------------------------ */
+  :root {
+    --bg: #f4f6fb;
+    --surface: #ffffff;
+    --text: #18213a;
+    --muted: #5f6b85;
+    --line: #e3e7f0;
+    --accent: #1f3864;
+    --accent-soft: #e8edf7;
+    --win: #1e8e4e;
+    --draw: #8a93a8;
+    --loss: #c8372d;
+    --gold: #c99a14;
+    --silver: #8d99ae;
+    --bronze: #b06a3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1422;
+      --surface: #171e31;
+      --text: #e8ecf5;
+      --muted: #9aa5bd;
+      --line: #263049;
+      --accent: #8fb0ff;
+      --accent-soft: #1f2a45;
+      --win: #4cc684;
+      --draw: #8a93a8;
+      --loss: #f0675c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1422; --surface: #171e31; --text: #e8ecf5; --muted: #9aa5bd;
+    --line: #263049; --accent: #8fb0ff; --accent-soft: #1f2a45;
+    --win: #4cc684; --draw: #8a93a8; --loss: #f0675c;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+
+  header { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+  h1 { margin: 0; font-size: 28px; letter-spacing: -0.01em; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); margin-top: 2px; }
+  .maj { color: var(--muted); font-size: 13px; text-align: right; }
+  .maj button {
+    margin-top: 4px; font: inherit; color: var(--accent); background: none;
+    border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer;
+  }
+
+  .podium { display: grid; grid-template-columns: 1.5fr 1fr 1fr; align-items: end; gap: 12px; margin-bottom: 20px; }
+  .podium .premier { padding: 18px 20px; }
+  .podium .premier .nom { font-size: 24px; }
+  .podium .premier .elo { font-size: 38px; }
+  .carte {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px;
+  }
+  .podium .carte { border-top: 4px solid var(--c); }
+  .podium .place { font-size: 13px; color: var(--muted); }
+  .podium .nom { font-size: 18px; font-weight: 700; margin: 2px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .podium .elo { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .podium .elo small { font-size: 13px; font-weight: 500; color: var(--muted); }
+
+  h2 { font-size: 17px; margin: 0 0 10px; }
+  section + section { margin-top: 24px; }
+
+  .table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 10px 12px; text-align: center; white-space: nowrap; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--line); }
+  td { border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: none; }
+  th.g, td.g { text-align: left; }
+  td.rang { font-weight: 700; color: var(--muted); width: 44px; }
+  td.joueur { font-weight: 600; }
+  td.elo { font-weight: 800; color: var(--accent); }
+  .pos { color: var(--win); }
+  .neg { color: var(--loss); }
+  .forme { display: inline-flex; gap: 3px; }
+  .pastille {
+    width: 20px; height: 20px; border-radius: 4px; color: #fff; font-size: 11px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .V { background: var(--win); } .N { background: var(--draw); } .D { background: var(--loss); }
+  .inactif td { color: var(--muted); }
+  .inactif td.elo { color: var(--muted); }
+
+  /* Photos des joueurs, ratio 25/35 */
+  .photo {
+    --w: 30px;
+    position: relative; flex: none; width: var(--w); aspect-ratio: 25 / 35;
+    border-radius: 5px; overflow: hidden; background: var(--accent-soft); color: var(--accent);
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: calc(var(--w) * 0.36); letter-spacing: 0.02em;
+  }
+  .photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .ident { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .ident .txt { min-width: 0; }
+  .podium .carte { display: flex; align-items: center; gap: 14px; }
+  .podium .infos { min-width: 0; }
+
+  .matchs { display: grid; gap: 8px; }
+  .match {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px;
+  }
+  .match .cote { min-width: 0; }
+  .match .cote.d { text-align: right; flex-direction: row-reverse; }
+  .match .n { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .match .det { font-size: 12px; color: var(--muted); }
+  .match .score { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; text-align: center; min-width: 70px; }
+  .match .date { font-size: 11px; color: var(--muted); text-align: center; font-weight: 400; }
+  .gagnant .n { color: var(--accent); }
+
+  .note { background: var(--accent-soft); color: var(--text); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 14px; }
+  .erreur { background: #fde8e6; color: #8a1f17; }
+  .vide { color: var(--muted); padding: 16px; text-align: center; }
+  footer { margin-top: 32px; color: var(--muted); font-size: 12px; text-align: center; }
+
+  @media (max-width: 640px) {
+    h1 { font-size: 23px; }
+    .podium { grid-template-columns: 1fr; }
+    .podium .carte { padding: 10px 14px; }
+    .podium .carte .photo { --w: 44px !important; }
+    .podium .premier .photo { --w: 64px !important; }
+    .podium .premier .nom { font-size: 20px; }
+    .podium .premier .elo { font-size: 32px; }
+    .podium .infos { flex: 1; display: flex; align-items: baseline; gap: 10px; }
+    .podium .nom { flex: 1; }
+    .match { padding: 10px; gap: 6px; }
+    .match .photo { display: none; }
+    td.joueur .photo { --w: 22px !important; }
+    td.joueur .ident { gap: 7px; }
+    td.joueur .txt { display: block; max-width: 72px; overflow: hidden; text-overflow: ellipsis; }
+    th, td { padding: 9px 4px; }
+    table { font-size: 14px; }
+    td.rang { width: auto; }
+    .masque-mobile { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Prime<span>League</span></h1>
+      <div class="sub">Classement FIFA Interne Primelis</div>
+    </div>
+    <div class="maj">
+      <div id="maj">Chargement…</div>
+      <button type="button" id="rafraichir">Actualiser</button>
+    </div>
+  </header>
+
+  <div id="message"></div>
+  <div class="podium" id="podium"></div>
+
+  <section>
+    <h2>Classement</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th class="g">Joueur</th>
+            <th>ELO</th>
+            <th>MJ</th>
+            <th>V</th>
+            <th>N</th>
+            <th>D</th>
+            <th class="masque-mobile">Buts</th>
+            <th>Diff.</th>
+            <th class="masque-mobile">Forme</th>
+          </tr>
+        </thead>
+        <tbody id="classement"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Derniers matchs</h2>
+    <div class="matchs" id="matchs"></div>
+  </section>
+
+  <footer>
+    Seuls les matchs confirmés par l'adversaire comptent. Mise à jour automatique toutes les 5 minutes.
+  </footer>
+</div>
+
+<script>
+/* ------------------------------------------------------------------
+   CONFIGURATION
+   Coller ici les deux liens CSV obtenus avec
+   Fichier > Partager > Publier sur le Web (un lien par onglet, format CSV).
+   Tant que ces liens sont vides, la page affiche des données de démonstration.
+   ------------------------------------------------------------------ */
+var CONFIG = {
+  csvClassement: '',   // onglet "Classement"
+  csvMatchs: '',       // onglet "Calcul ELO"
+  dossierPhotos: 'photos/',  // une photo par joueur : photos/karim.jpg, photos/benoit.jpg…
+  extensionPhotos: '.jpg',
+  nbDerniersMatchs: 10,
+  rafraichissementMinutes: 5
+};
+
+/* ------------------------------------------------------------------ */
+
+var DEMO_CLASSEMENT = [
+  "Rang,Joueur,ELO,Matchs joués,Victoires,Nuls,Défaites,Buts marqués,Buts encaissés,Différence de buts",
+  "1,Yanis,1054,3,3,0,0,6,2,4",
+  "2,Benoit,1051,2,2,0,0,9,1,8",
+  "3,Julien,1049,3,2,1,0,7,0,7",
+  "4,Thibault,1045,3,2,1,0,7,0,7",
+  "5,Karim,1033,3,2,0,1,9,3,6",
+  "6,Lucas,1025,2,1,0,1,7,1,6",
+  "7,Nathan,1007,3,1,1,1,7,7,0",
+  "8,Axel,985,3,1,1,1,9,12,-3",
+  "9,Ugo,984,3,1,0,2,5,6,-1",
+  "10,Anthony,971,2,0,1,1,3,9,-6",
+  "11,Dimitri,954,3,0,1,2,3,7,-4",
+  "12,Guillaume,952,3,0,1,2,2,7,-5",
+  "13,Alexandre,950,3,0,1,2,0,10,-10",
+  "14,Hamza,939,2,0,0,2,0,9,-9"
+].join('\n');
+var DEMO_MATCHS = [
+  "ID,Déclaré le,Joueur 1,Étoiles J1,Buts J1,Joueur 2,Étoiles J2,Buts J2,Résultat J1,ELO avant J1,ELO avant J2,Bonus étoiles J1 (pts ELO),Score attendu J1,Multiplicateur buts,Points gagnés J1,ELO après J1,ELO après J2",
+  "M0001,09/11/2026 12:15,Thibault,\"3,5\",4,Nathan,\"3,5\",0,1,1000,1000,0,\"0,50\",\"1,88\",\"+30,0\",1030,970",
+  "M0002,09/11/2026 17:15,Yanis,3,1,Dimitri,4,0,1,1000,1000,-50,\"0,43\",\"1,00\",\"+18,3\",1018,982",
+  "M0003,10/11/2026 12:15,Dimitri,4,1,Nathan,3,1,\"0,5\",982,970,50,\"0,59\",\"1,00\",\"-2,8\",979,973",
+  "M0004,10/11/2026 17:15,Karim,3,0,Yanis,4,1,0,1000,1018,-50,\"0,40\",\"1,00\",\"-12,9\",987,1031",
+  "M0005,11/11/2026 12:15,Julien,3,0,Guillaume,5,0,\"0,5\",1000,1000,-100,\"0,36\",\"1,00\",\"+4,5\",1004,996",
+  "M0006,11/11/2026 17:15,Dimitri,\"4,5\",2,Karim,5,5,0,979,987,-25,\"0,45\",\"1,75\",\"-25,3\",954,1012",
+  "M0007,12/11/2026 12:15,Benoit,3,2,Hamza,3,0,1,1000,1000,0,\"0,50\",\"1,50\",\"+24,0\",1024,976",
+  "M0008,12/11/2026 17:15,Yanis,\"3,5\",4,Guillaume,4,2,1,1031,996,-25,\"0,52\",\"1,50\",\"+23,3\",1054,972",
+  "M0009,13/11/2026 12:15,Alexandre,3,0,Karim,5,4,0,1000,1012,-100,\"0,34\",\"1,88\",\"-20,6\",979,1033",
+  "M0010,13/11/2026 17:15,Axel,3,5,Ugo,\"3,5\",4,1,1000,1000,-25,\"0,46\",\"1,00\",\"+17,1\",1017,983",
+  "M0011,14/11/2026 12:15,Lucas,3,0,Ugo,5,1,0,1000,983,-100,\"0,38\",\"1,00\",\"-12,3\",988,995",
+  "M0012,14/11/2026 17:15,Julien,4,6,Alexandre,\"4,5\",0,1,1004,979,-25,\"0,50\",\"2,12\",\"+34,0\",1038,945",
+  "M0013,15/11/2026 12:15,Alexandre,3,0,Thibault,\"3,5\",0,\"0,5\",945,1030,-25,\"0,35\",\"1,00\",\"+4,9\",950,1025",
+  "M0014,15/11/2026 17:15,Nathan,\"3,5\",6,Axel,\"3,5\",2,1,973,1017,0,\"0,44\",\"1,88\",\"+33,8\",1007,983",
+  "M0015,16/11/2026 12:15,Julien,\"4,5\",1,Ugo,3,0,1,1038,995,75,\"0,66\",\"1,00\",\"+10,8\",1049,984",
+  "M0016,16/11/2026 17:15,Thibault,4,3,Guillaume,3,0,1,1025,972,50,\"0,64\",\"1,75\",\"+19,9\",1045,952",
+  "M0017,17/11/2026 12:15,Hamza,5,0,Lucas,\"4,5\",7,0,976,988,25,\"0,52\",\"2,25\",\"-37,4\",939,1025",
+  "M0018,17/11/2026 17:15,Anthony,4,2,Axel,\"3,5\",2,\"0,5\",1000,983,25,\"0,56\",\"1,00\",\"-1,9\",998,985",
+  "M0019,18/11/2026 12:15,Anthony,4,1,Benoit,5,7,0,998,1024,-50,\"0,39\",\"2,12\",\"-26,7\",971,1051"
+].join('\n');
+
+function parseCSV(texte) {
+  var lignes = [], ligne = [], champ = '', guillemets = false;
+  texte = texte.replace(/^﻿/, '');
+  for (var i = 0; i < texte.length; i++) {
+    var c = texte[i];
+    if (guillemets) {
+      if (c === '"' && texte[i + 1] === '"') { champ += '"'; i++; }
+      else if (c === '"') { guillemets = false; }
+      else { champ += c; }
+    } else if (c === '"') { guillemets = true; }
+    else if (c === ',') { ligne.push(champ); champ = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && texte[i + 1] === '\n') i++;
+      ligne.push(champ); lignes.push(ligne); ligne = []; champ = '';
+    } else { champ += c; }
+  }
+  if (champ !== '' || ligne.length) { ligne.push(champ); lignes.push(ligne); }
+  var entetes = (lignes.shift() || []).map(function (h) { return h.trim(); });
+  return lignes
+    .filter(function (l) { return l.some(function (v) { return v.trim() !== ''; }); })
+    .map(function (l) {
+      var o = {};
+      entetes.forEach(function (h, j) { o[h] = (l[j] || '').trim(); });
+      return o;
+    });
+}
+
+function nombre(v) {
+  if (v === undefined || v === null) return NaN;
+  var s = String(v).replace(/\s| | /g, '').replace(',', '.');
+  return s === '' ? NaN : parseFloat(s);
+}
+
+function echapper(t) {
+  return String(t).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+function slug(nom) {
+  return String(nom).normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function initiales(nom) {
+  return String(nom).trim().split(/\s+/).map(function (m) { return m.charAt(0); })
+    .join('').slice(0, 2).toUpperCase();
+}
+
+// Affiche la photo du joueur ; si le fichier n'existe pas, ses initiales restent visibles
+function photo(nom, largeur) {
+  return '<span class="photo" style="--w:' + largeur + 'px">' + echapper(initiales(nom)) +
+    '<img src="' + CONFIG.dossierPhotos + slug(nom) + CONFIG.extensionPhotos + '" alt="" loading="lazy" onerror="this.remove()">' +
+    '</span>';
+}
+
+function signe(n) {
+  var r = Math.round(n);
+  return (r > 0 ? '+' : '') + r;
+}
+
+function telecharger(url) {
+  var sep = url.indexOf('?') === -1 ? '?' : '&';
+  return fetch(url + sep + '_=' + Date.now(), { cache: 'no-store' }).then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.text();
+  });
+}
+
+function charger() {
+  var demo = !CONFIG.csvClassement || !CONFIG.csvMatchs;
+  var p = demo
+    ? Promise.resolve([DEMO_CLASSEMENT, DEMO_MATCHS])
+    : Promise.all([telecharger(CONFIG.csvClassement), telecharger(CONFIG.csvMatchs)]);
+
+  return p.then(function (res) {
+    var classement = parseCSV(res[0]).filter(function (l) { return l['Joueur']; });
+    var matchs = parseCSV(res[1]).filter(function (l) { return l['ID'] && l['Joueur 1']; });
+    afficher(classement, matchs);
+    document.getElementById('message').innerHTML = demo
+      ? '<div class="note">Données de démonstration. Ajoute les liens CSV du Google Sheet dans la configuration de la page pour afficher le vrai classement.</div>'
+      : '';
+    var now = new Date();
+    document.getElementById('maj').textContent = 'Mis à jour à ' +
+      now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }).catch(function (err) {
+    document.getElementById('message').innerHTML =
+      '<div class="note erreur">Impossible de charger le classement (' + echapper(err.message) +
+      '). Vérifie que les onglets sont bien publiés sur le Web au format CSV.</div>';
+    document.getElementById('maj').textContent = 'Échec du chargement';
+  });
+}
+
+function formeParJoueur(matchs) {
+  var forme = {};
+  matchs.forEach(function (m) {
+    var r = nombre(m['Résultat J1']);
+    var j1 = m['Joueur 1'], j2 = m['Joueur 2'];
+    var r1 = r === 1 ? 'V' : r === 0 ? 'D' : 'N';
+    var r2 = r === 1 ? 'D' : r === 0 ? 'V' : 'N';
+    (forme[j1] = forme[j1] || []).push(r1);
+    (forme[j2] = forme[j2] || []).push(r2);
+  });
+  return forme;
+}
+
+function afficher(classement, matchs) {
+  var forme = formeParJoueur(matchs);
+
+  // Les joueurs qui ont déjà joué passent devant ceux qui n'ont pas encore joué
+  var actifs = classement.filter(function (j) { return nombre(j['Matchs joués']) > 0; });
+  var inactifs = classement.filter(function (j) { return !(nombre(j['Matchs joués']) > 0); });
+  var liste = actifs.concat(inactifs);
+
+  // Podium
+  var couleurs = ['var(--gold)', 'var(--silver)', 'var(--bronze)'];
+  var places = ['1er', '2e', '3e'];
+  document.getElementById('podium').innerHTML = actifs.slice(0, 3).map(function (j, i) {
+    return '<div class="carte' + (i === 0 ? ' premier' : '') + '" style="--c:' + couleurs[i] + '">' +
+      photo(j['Joueur'], i === 0 ? 105 : 75) +
+      '<div class="infos">' +
+      '<div class="place">' + places[i] + '</div>' +
+      '<div class="nom">' + echapper(j['Joueur']) + '</div>' +
+      '<div class="elo">' + Math.round(nombre(j['ELO'])) + ' <small>ELO</small></div>' +
+      '</div></div>';
+  }).join('');
+
+  // Tableau
+  var tbody = document.getElementById('classement');
+  if (!liste.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="vide">Aucun joueur pour le moment.</td></tr>';
+  } else {
+    tbody.innerHTML = liste.map(function (j, i) {
+      var joue = nombre(j['Matchs joués']) > 0;
+      var diff = nombre(j['Différence de buts']);
+      var f = (forme[j['Joueur']] || []).slice(-5);
+      return '<tr class="' + (joue ? '' : 'inactif') + '">' +
+        '<td class="rang">' + (joue ? i + 1 : '–') + '</td>' +
+        '<td class="g joueur"><span class="ident">' + photo(j['Joueur'], 30) + '<span class="txt">' + echapper(j['Joueur']) + '</span></span></td>' +
+        '<td class="elo">' + Math.round(nombre(j['ELO'])) + '</td>' +
+        '<td>' + (nombre(j['Matchs joués']) || 0) + '</td>' +
+        '<td>' + (nombre(j['Victoires']) || 0) + '</td>' +
+        '<td>' + (nombre(j['Nuls']) || 0) + '</td>' +
+        '<td>' + (nombre(j['Défaites']) || 0) + '</td>' +
+        '<td class="masque-mobile">' + (nombre(j['Buts marqués']) || 0) + ' : ' + (nombre(j['Buts encaissés']) || 0) + '</td>' +
+        '<td class="' + (diff > 0 ? 'pos' : diff < 0 ? 'neg' : '') + '">' + (isNaN(diff) ? 0 : signe(diff)) + '</td>' +
+        '<td class="masque-mobile"><span class="forme">' + f.map(function (x) {
+          return '<span class="pastille ' + x + '" title="' + { V: 'Victoire', N: 'Nul', D: 'Défaite' }[x] + '">' + x + '</span>';
+        }).join('') + '</span></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  // Derniers matchs (du plus récent au plus ancien)
+  var derniers = matchs.slice(-CONFIG.nbDerniersMatchs).reverse();
+  var zone = document.getElementById('matchs');
+  if (!derniers.length) {
+    zone.innerHTML = '<div class="carte vide">Aucun match validé pour le moment.</div>';
+    return;
+  }
+  zone.innerHTML = derniers.map(function (m) {
+    var pts = nombre(m['Points gagnés J1']);
+    var r = nombre(m['Résultat J1']);
+    var date = (m['Déclaré le'] || '').split(' ')[0];
+    function cote(nom, etoiles, p, gagnant, droite) {
+      return '<div class="cote ident' + (droite ? ' d' : '') + (gagnant ? ' gagnant' : '') + '">' +
+        photo(nom, 32) + '<div class="txt">' +
+        '<div class="n">' + echapper(nom) + '</div>' +
+        '<div class="det">' + echapper(etoiles) + ' ★ · <span class="' + (p > 0 ? 'pos' : p < 0 ? 'neg' : '') + '">' +
+        signe(p) + ' ELO</span></div></div></div>';
+    }
+    return '<div class="match">' +
+      cote(m['Joueur 1'], m['Étoiles J1'], pts, r === 1, false) +
+      '<div class="score">' + echapper(m['Buts J1']) + ' - ' + echapper(m['Buts J2']) +
+      '<div class="date">' + echapper(date) + '</div></div>' +
+      cote(m['Joueur 2'], m['Étoiles J2'], -pts, r === 0, true) +
+      '</div>';
+  }).join('');
+}
+
+document.getElementById('rafraichir').addEventListener('click', charger);
+charger();
+setInterval(charger, CONFIG.rafraichissementMinutes * 60 * 1000);
+</script>
+</body>
+</html>
