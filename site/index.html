@@ -99,7 +99,12 @@
   td { border-bottom: 1px solid var(--line); }
   tr:last-child td { border-bottom: none; }
   th.g, td.g { text-align: left; }
-  td.rang { font-weight: 700; color: var(--muted); width: 44px; }
+  td.rang { font-weight: 700; color: var(--muted); width: 44px; line-height: 1.1; }
+  .mvt { display: block; font-size: 10px; font-weight: 700; margin-top: 2px; letter-spacing: .02em; }
+  .mvt.monte { color: var(--win); }
+  .mvt.descend { color: var(--loss); }
+  .mvt.stable { color: var(--muted); font-weight: 500; }
+  .mvt.nouveau { color: var(--accent); }
   td.joueur { font-weight: 600; }
   td.elo { font-weight: 800; color: var(--accent); }
   .pos { color: var(--win); }
@@ -390,7 +395,7 @@ function charger() {
   return p.then(function (res) {
     var classement = parseCSV(res[0]).filter(function (l) { return l['Joueur']; });
     var matchs = parseCSV(res[1]).filter(function (l) { return l['ID'] && l['Joueur 1']; });
-    afficher(classement, matchs);
+    afficher(classement, matchs, demo);
     document.getElementById('message').innerHTML = demo
       ? '<div class="note">Données de démonstration. Ajoute les liens CSV du Google Sheet dans la configuration de la page pour afficher le vrai classement.</div>'
       : '';
@@ -548,12 +553,55 @@ function basculer(tr) {
   }
 }
 
-function afficher(classement, matchs) {
+// Date "jj/mm/aaaa hh:mm" -> Date
+function lireDate(t) {
+  var m = String(t || '').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+  return m ? new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0)) : null;
+}
+
+// Rang de chaque joueur à la fin de la semaine dernière (avant lundi 0 h)
+function rangsSemaineDerniere(matchs, depart, maintenant) {
+  var lundi = new Date(maintenant.getFullYear(), maintenant.getMonth(), maintenant.getDate());
+  lundi.setDate(lundi.getDate() - ((lundi.getDay() + 6) % 7));
+  var etat = {};
+  matchs.forEach(function (m) {
+    var d = lireDate(m['Déclaré le']);
+    if (!d || d >= lundi) return;
+    var b1 = nombre(m['Buts J1']) || 0, b2 = nombre(m['Buts J2']) || 0;
+    [[m['Joueur 1'], nombre(m['ELO après J1']), b1 - b2], [m['Joueur 2'], nombre(m['ELO après J2']), b2 - b1]]
+      .forEach(function (x) {
+        var e = etat[x[0]] = etat[x[0]] || { elo: depart, diff: 0 };
+        e.elo = x[1]; e.diff += x[2];
+      });
+  });
+  var noms = Object.keys(etat);
+  if (!noms.length) return null; // pas encore de classement la semaine dernière
+  noms.sort(function (a, b) {
+    return Math.round(etat[b].elo) - Math.round(etat[a].elo) || etat[b].diff - etat[a].diff;
+  });
+  var rangs = {};
+  noms.forEach(function (n, i) { rangs[n] = i + 1; });
+  return rangs;
+}
+
+function badgeMouvement(ancien, rang) {
+  if (!ancien) return '<span class="mvt nouveau" title="Pas encore classé la semaine dernière">NEW</span>';
+  var d = ancien - rang;
+  if (d > 0) return '<span class="mvt monte" title="Gagne ' + d + ' place' + (d > 1 ? 's' : '') + ' depuis la semaine dernière">▲' + d + '</span>';
+  if (d < 0) return '<span class="mvt descend" title="Perd ' + (-d) + ' place' + (d < -1 ? 's' : '') + ' depuis la semaine dernière">▼' + (-d) + '</span>';
+  return '<span class="mvt stable" title="Même place que la semaine dernière">=</span>';
+}
+
+function afficher(classement, matchs, demo) {
   var forme = formeParJoueur(matchs);
+  // En démo, "aujourd'hui" = date du dernier match, pour que les flèches aient un sens
+  var dernier = matchs.length ? lireDate(matchs[matchs.length - 1]['Déclaré le']) : null;
+  var maintenant = demo && dernier ? dernier : new Date();
   var hist = historiques(matchs);
   // ELO de départ : celui d'un joueur sans match, sinon 1000
   var sansMatch = classement.filter(function (j) { return !(nombre(j['Matchs joués']) > 0); })[0];
   donneesFiches = { hist: hist, depart: sansMatch ? nombre(sansMatch['ELO']) : 1000 };
+  var anciensRangs = rangsSemaineDerniere(matchs, donneesFiches.depart, maintenant);
 
   // Les joueurs qui ont déjà joué passent devant ceux qui n'ont pas encore joué
   var actifs = classement.filter(function (j) { return nombre(j['Matchs joués']) > 0; });
@@ -585,7 +633,7 @@ function afficher(classement, matchs) {
       var nom = j['Joueur'];
       var ouvert = !!joueursOuverts[nom];
       return '<tr class="ligne' + (joue ? '' : ' inactif') + '" data-joueur="' + echapper(nom) + '" tabindex="0" aria-expanded="' + ouvert + '">' +
-        '<td class="rang">' + (joue ? i + 1 : '–') + '</td>' +
+        '<td class="rang">' + (joue ? (i + 1) + (anciensRangs ? badgeMouvement(anciensRangs[nom], i + 1) : '') : '–') + '</td>' +
         '<td class="g joueur"><span class="ident">' + photo(j['Joueur'], 30) + '<span class="txt">' + echapper(j['Joueur']) + '</span><span class="chevron" aria-hidden="true">▾</span></span></td>' +
         '<td class="elo">' + Math.round(nombre(j['ELO'])) + '</td>' +
         '<td>' + (nombre(j['Matchs joués']) || 0) + '</td>' +
