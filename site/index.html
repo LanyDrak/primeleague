@@ -107,6 +107,36 @@
   .inactif td { color: var(--muted); }
   .inactif td.elo { color: var(--muted); }
 
+  /* Fiche joueur dépliable */
+  tr.ligne { cursor: pointer; }
+  tr.ligne:hover td { background: var(--accent-soft); }
+  tr.ligne:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  tr.ligne td.joueur .chevron { display: inline-block; margin-left: 6px; color: var(--muted); font-size: 11px; transition: transform .2s; }
+  tr.ligne[aria-expanded="true"] td { background: var(--accent-soft); }
+  tr.ligne[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+  tr.detail > td { padding: 0; text-align: left; white-space: normal; background: var(--bg); }
+  tr.detail[hidden] { display: none; }
+  .fiche { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 3.2fr); gap: 10px; padding: 12px; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; gap: 6px; min-height: 150px; }
+  .stat .lib { margin-bottom: 4px; }
+  .stat .val { margin-top: 18px; }
+  .stat .lib { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+  .stat .val { font-size: 26px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .stat .nomstat { font-weight: 700; }
+  .stat .sous { font-size: 12px; color: var(--muted); }
+  .stat.vide-stat .nomstat { color: var(--muted); font-weight: 500; }
+  .courbe { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 6px; position: relative; min-width: 0; }
+  .courbe .lib { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
+  .courbe svg { display: block; width: 100%; overflow: visible; }
+  .courbe .axe { font-size: 11px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .courbe .grille { stroke: var(--line); stroke-width: 1; }
+  .courbe .depart { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 4; }
+  .courbe .ligne-elo { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .courbe .pt { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
+  .courbe .pt.actif { r: 6; }
+  .infobulle { position: absolute; pointer-events: none; background: var(--text); color: var(--bg); font-size: 12px; border-radius: 6px; padding: 6px 8px; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); line-height: 1.35; z-index: 2; }
+  .infobulle[hidden] { display: none; }
+
   /* Photos des joueurs, ratio 25/35 */
   .photo {
     --w: 30px;
@@ -159,6 +189,11 @@
     td.rang { width: auto; }
     .masque-mobile { display: none; }
     .maj { text-align: left; }
+    .fiche { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 8px; gap: 6px; }
+    .courbe { grid-column: 1 / -1; }
+    .stat { min-height: 0; padding: 10px 6px; }
+    .stat .val { font-size: 20px; }
+    .stat .lib { font-size: 10px; }
   }
 </style>
 </head>
@@ -376,8 +411,142 @@ function formeParJoueur(matchs) {
   return forme;
 }
 
+// Historique de chaque joueur : un élément par match validé, dans l'ordre
+function historiques(matchs) {
+  var h = {};
+  matchs.forEach(function (m, idx) {
+    var r = nombre(m['Résultat J1']);
+    var pts = nombre(m['Points gagnés J1']);
+    var date = (m['Déclaré le'] || '').split(' ')[0];
+    [[m['Joueur 1'], m['Joueur 2'], r, nombre(m['ELO après J1']), nombre(m['ELO avant J1']), m['Buts J1'], m['Buts J2'], pts],
+     [m['Joueur 2'], m['Joueur 1'], 1 - r, nombre(m['ELO après J2']), nombre(m['ELO avant J2']), m['Buts J2'], m['Buts J1'], -pts]]
+      .forEach(function (x) {
+        (h[x[0]] = h[x[0]] || []).push({
+          adv: x[1], res: x[2], apres: x[3], avant: x[4], bp: x[5], bc: x[6], pts: x[7], date: date
+        });
+      });
+  });
+  return h;
+}
+
+// Adversaire le plus souvent battu (bouc) ou qui nous a le plus battu (bête noire)
+function adversairePhare(hist, resultat) {
+  var c = {};
+  hist.forEach(function (m) {
+    var o = c[m.adv] = c[m.adv] || { nom: m.adv, n: 0, total: 0, diff: 0 };
+    o.total++;
+    o.diff += (nombre(m.bp) || 0) - (nombre(m.bc) || 0);
+    if (m.res === resultat) o.n++;
+  });
+  var liste = Object.keys(c).map(function (k) { return c[k]; }).filter(function (o) { return o.n > 0; });
+  liste.sort(function (a, b) {
+    return b.n - a.n || (resultat === 1 ? b.diff - a.diff : a.diff - b.diff) || a.nom.localeCompare(b.nom, 'fr');
+  });
+  return liste[0] || null;
+}
+
+function carteAdversaire(titre, o, resultat) {
+  if (!o) {
+    return '<div class="stat vide-stat"><div class="lib">' + titre + '</div>' +
+      '<div class="nomstat">Personne pour l\'instant</div></div>';
+  }
+  var mot = resultat === 1 ? (o.n > 1 ? 'victoires' : 'victoire') : (o.n > 1 ? 'défaites' : 'défaite');
+  return '<div class="stat"><div class="lib">' + titre + '</div>' + photo(o.nom, 40) +
+    '<div class="nomstat">' + echapper(o.nom) + '</div>' +
+    '<div class="sous">' + o.n + ' ' + mot + ' en ' + o.total + ' match' + (o.total > 1 ? 's' : '') + '</div></div>';
+}
+
+function ficheJoueur(nom, hist, eloDepart) {
+  var meilleur = eloDepart, quand = 'Au départ';
+  hist.forEach(function (m) { if (m.apres > meilleur) { meilleur = m.apres; quand = 'Le ' + m.date; } });
+  return '<div class="fiche">' +
+    '<div class="stat"><div class="lib">Meilleur ELO</div><div class="val">' + Math.round(meilleur) + '</div>' +
+    '<div class="sous">' + echapper(quand) + '</div></div>' +
+    carteAdversaire('Bouc émissaire', adversairePhare(hist, 1), 1) +
+    carteAdversaire('Bête noire', adversairePhare(hist, 0), 0) +
+    '<div class="courbe" data-joueur="' + echapper(nom) + '"><div class="lib">Évolution de l\'ELO</div>' +
+    '<div class="trace"></div><div class="infobulle" hidden></div></div>' +
+    '</div>';
+}
+
+// Courbe de l'ELO : un point au départ puis un point après chaque match
+function dessinerCourbe(zone, hist, eloDepart) {
+  var trace = zone.querySelector('.trace');
+  var bulle = zone.querySelector('.infobulle');
+  var pts = [{ elo: eloDepart, depart: true }].concat(hist.map(function (m) {
+    return { elo: m.apres, m: m };
+  }));
+  var W = Math.max(trace.clientWidth, 200), H = 170;
+  var g = 40, d = 12, h = 14, b = 22; // marges gauche, droite, haut, bas
+  var vals = pts.map(function (p) { return p.elo; });
+  var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+  var pas = max - min > 120 ? 50 : max - min > 50 ? 25 : 10;
+  min = Math.floor((min - 5) / pas) * pas; max = Math.ceil((max + 5) / pas) * pas;
+  var x = function (i) { return g + (pts.length === 1 ? (W - g - d) / 2 : i * (W - g - d) / (pts.length - 1)); };
+  var y = function (v) { return h + (max - v) * (H - h - b) / (max - min); };
+
+  var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" height="' + H + '" role="img" aria-label="Évolution de l\'ELO">';
+  for (var v = min; v <= max; v += pas) {
+    svg += '<line class="grille" x1="' + g + '" x2="' + (W - d) + '" y1="' + y(v) + '" y2="' + y(v) + '"/>' +
+      '<text class="axe" x="' + (g - 6) + '" y="' + (y(v) + 4) + '" text-anchor="end">' + v + '</text>';
+  }
+  svg += '<line class="depart" x1="' + g + '" x2="' + (W - d) + '" y1="' + y(eloDepart) + '" y2="' + y(eloDepart) + '"/>';
+  svg += '<text class="axe" x="' + g + '" y="' + (H - 4) + '">Départ</text>';
+  svg += '<text class="axe" x="' + (W - d) + '" y="' + (H - 4) + '" text-anchor="end">' +
+    (pts.length - 1) + ' match' + (pts.length > 2 ? 's' : '') + '</text>';
+  svg += '<polyline class="ligne-elo" points="' + pts.map(function (p, i) { return x(i) + ',' + y(p.elo); }).join(' ') + '"/>';
+  pts.forEach(function (p, i) {
+    svg += '<circle class="pt" r="4" cx="' + x(i) + '" cy="' + y(p.elo) + '"/>';
+  });
+  svg += '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="transparent" class="zone-survol"/></svg>';
+  trace.innerHTML = svg;
+
+  var cercles = trace.querySelectorAll('.pt');
+  var surface = trace.querySelector('.zone-survol');
+  function montrer(evt) {
+    var r = trace.getBoundingClientRect();
+    var px = (evt.clientX - r.left) * W / r.width;
+    var i = 0, best = Infinity;
+    pts.forEach(function (p, k) { var e = Math.abs(x(k) - px); if (e < best) { best = e; i = k; } });
+    cercles.forEach(function (c, k) { c.classList.toggle('actif', k === i); });
+    var p = pts[i];
+    bulle.innerHTML = p.depart ? '<b>Départ</b> · ' + Math.round(p.elo) + ' ELO' :
+      '<b>' + Math.round(p.elo) + ' ELO</b> (' + signe(p.m.pts) + ')<br>' +
+      ({ 1: 'Victoire', 0: 'Défaite' }[p.m.res] || 'Nul') + ' ' + echapper(p.m.bp) + '-' + echapper(p.m.bc) +
+      ' contre ' + echapper(p.m.adv) + '<br>' + echapper(p.m.date);
+    bulle.style.left = (trace.offsetLeft + x(i) * r.width / W) + 'px';
+    bulle.style.top = (trace.offsetTop + y(p.elo) * r.height / H) + 'px';
+    bulle.hidden = false;
+  }
+  function cacher() { bulle.hidden = true; cercles.forEach(function (c) { c.classList.remove('actif'); }); }
+  surface.addEventListener('mousemove', montrer);
+  surface.addEventListener('mouseleave', cacher);
+  surface.addEventListener('touchstart', function (e) { montrer(e.touches[0]); }, { passive: true });
+}
+
+var joueursOuverts = {};
+var donneesFiches = { hist: {}, depart: 1000 };
+
+function basculer(tr) {
+  var nom = tr.getAttribute('data-joueur');
+  var detail = tr.nextElementSibling;
+  var ouvrir = tr.getAttribute('aria-expanded') !== 'true';
+  tr.setAttribute('aria-expanded', ouvrir ? 'true' : 'false');
+  detail.hidden = !ouvrir;
+  if (ouvrir) {
+    joueursOuverts[nom] = true;
+    dessinerCourbe(detail.querySelector('.courbe'), donneesFiches.hist[nom] || [], donneesFiches.depart);
+  } else {
+    delete joueursOuverts[nom];
+  }
+}
+
 function afficher(classement, matchs) {
   var forme = formeParJoueur(matchs);
+  var hist = historiques(matchs);
+  // ELO de départ : celui d'un joueur sans match, sinon 1000
+  var sansMatch = classement.filter(function (j) { return !(nombre(j['Matchs joués']) > 0); })[0];
+  donneesFiches = { hist: hist, depart: sansMatch ? nombre(sansMatch['ELO']) : 1000 };
 
   // Les joueurs qui ont déjà joué passent devant ceux qui n'ont pas encore joué
   var actifs = classement.filter(function (j) { return nombre(j['Matchs joués']) > 0; });
@@ -406,9 +575,11 @@ function afficher(classement, matchs) {
       var joue = nombre(j['Matchs joués']) > 0;
       var diff = nombre(j['Différence de buts']);
       var f = (forme[j['Joueur']] || []).slice(-5);
-      return '<tr class="' + (joue ? '' : 'inactif') + '">' +
+      var nom = j['Joueur'];
+      var ouvert = !!joueursOuverts[nom];
+      return '<tr class="ligne' + (joue ? '' : ' inactif') + '" data-joueur="' + echapper(nom) + '" tabindex="0" aria-expanded="' + ouvert + '">' +
         '<td class="rang">' + (joue ? i + 1 : '–') + '</td>' +
-        '<td class="g joueur"><span class="ident">' + photo(j['Joueur'], 30) + '<span class="txt">' + echapper(j['Joueur']) + '</span></span></td>' +
+        '<td class="g joueur"><span class="ident">' + photo(j['Joueur'], 30) + '<span class="txt">' + echapper(j['Joueur']) + '</span><span class="chevron" aria-hidden="true">▾</span></span></td>' +
         '<td class="elo">' + Math.round(nombre(j['ELO'])) + '</td>' +
         '<td>' + (nombre(j['Matchs joués']) || 0) + '</td>' +
         '<td>' + (nombre(j['Victoires']) || 0) + '</td>' +
@@ -419,8 +590,14 @@ function afficher(classement, matchs) {
         '<td class="masque-mobile"><span class="forme">' + f.map(function (x) {
           return '<span class="pastille ' + x + '" title="' + { V: 'Victoire', N: 'Nul', D: 'Défaite' }[x] + '">' + x + '</span>';
         }).join('') + '</span></td>' +
-        '</tr>';
+        '</tr>' +
+        '<tr class="detail"' + (ouvert ? '' : ' hidden') + '><td colspan="10">' +
+        ficheJoueur(nom, hist[nom] || [], donneesFiches.depart) + '</td></tr>';
     }).join('');
+    tbody.querySelectorAll('tr.detail:not([hidden]) .courbe').forEach(function (c) {
+      var n = c.getAttribute('data-joueur');
+      dessinerCourbe(c, hist[n] || [], donneesFiches.depart);
+    });
   }
 
   // Derniers matchs (du plus récent au plus ancien)
@@ -451,6 +628,20 @@ function afficher(classement, matchs) {
 }
 
 document.getElementById('cta').href = CONFIG.lienFormulaire;
+document.getElementById('classement').addEventListener('click', function (e) {
+  var tr = e.target.closest('tr.ligne');
+  if (tr) basculer(tr);
+});
+document.getElementById('classement').addEventListener('keydown', function (e) {
+  var tr = e.target.closest('tr.ligne');
+  if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); basculer(tr); }
+});
+window.addEventListener('resize', function () {
+  document.querySelectorAll('tr.detail:not([hidden]) .courbe').forEach(function (c) {
+    var n = c.getAttribute('data-joueur');
+    dessinerCourbe(c, donneesFiches.hist[n] || [], donneesFiches.depart);
+  });
+});
 charger();
 setInterval(charger, CONFIG.rafraichissementMinutes * 60 * 1000);
 </script>
