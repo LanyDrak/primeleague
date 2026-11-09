@@ -17,6 +17,9 @@
  *  - S'il confirme, le statut passe à "Validé". S'il conteste, il passe à
  *    "Contesté" et l'organisateur ainsi que le déclarant sont prévenus.
  *  - L'organisateur peut toujours corriger un statut à la main dans l'onglet Matchs.
+ *  - La colonne M "Email de validation" indique si l'email est parti ou l'erreur
+ *    rencontrée. Le menu Prime League permet de renvoyer les emails des matchs
+ *    en attente et de lancer un diagnostic (déclencheurs, quota, email de test).
  */
 
 var ONGLET_JOUEURS = 'Joueurs';
@@ -51,9 +54,10 @@ var CHOIX_ETOILES = ['0,5', '1', '1,5', '2', '2,5', '3', '3,5', '4', '4,5', '5']
 var COL = {
   ID: 1, DECLARE_LE: 2, J1: 3, ETOILES_J1: 4, BUTS_J1: 5,
   J2: 6, ETOILES_J2: 7, BUTS_J2: 8, STATUT: 9, MAJ_LE: 10,
-  COMMENTAIRE: 11, CODE: 12
+  COMMENTAIRE: 11, CODE: 12, EMAIL: 13
 };
 var NB_COLONNES_MATCHS = 12;
+var TITRE_COL_EMAIL = 'Email de validation';
 
 /* ------------------------------------------------------------------ */
 /* Menu                                                                */
@@ -65,6 +69,9 @@ function onOpen() {
     .addItem('Installer les formulaires', 'installer')
     .addItem('Mettre à jour la liste des joueurs', 'majListeJoueurs')
     .addItem('Afficher les liens des formulaires', 'afficherLiens')
+    .addSeparator()
+    .addItem('Renvoyer les emails des matchs en attente', 'renvoyerEmailsEnAttente')
+    .addItem('Diagnostic des emails', 'diagnosticEmails')
     .addToUi();
 }
 
@@ -267,34 +274,66 @@ function traiterDeclaration_(nv) {
   }
 
   onglet.appendRow([id, maintenant, j1, e1, b1, j2, e2, b2, statut, maintenant, commentaire, code]);
+  var ligne = onglet.getLastRow();
 
   if (statut !== STATUT_ATTENTE) return;
 
-  var resume = j1 + ' ' + b1 + ' - ' + b2 + ' ' + j2 +
-    ' (étoiles : ' + j1 + ' ' + e1 + ', ' + j2 + ' ' + e2 + ')';
+  var resultat = envoyerEmailValidation_({
+    id: id, j1: j1, j2: j2, e1: e1, e2: e2, b1: b1, b2: b2, code: code
+  }, adversaire);
+  noterEnvoi_(onglet, ligne, resultat);
+}
 
-  if (adversaire && adversaire.email) {
-    var lien = lienValidation_(code);
-    MailApp.sendEmail({
-      name: NOM_EXPEDITEUR,
-      to: adversaire.email,
-      subject: 'Prime League : confirme ton match contre ' + j1,
-      htmlBody:
-        '<p>Salut ' + echapper_(j2) + ',</p>' +
-        '<p>' + echapper_(j1) + ' a déclaré le résultat suivant :</p>' +
-        '<p style="font-size:16px"><b>' + echapper_(resume) + '</b></p>' +
-        '<p><a href="' + lien + '">Confirmer ou contester ce résultat</a></p>' +
-        '<p>Le match comptera au classement dès que tu l\'auras confirmé.</p>'
-    });
-  } else {
+/**
+ * Envoie l'email de validation à l'adversaire (ou à l'organisateur si
+ * l'adversaire n'a pas d'email). Ne lève jamais d'erreur : renvoie un texte
+ * qui décrit le résultat, écrit ensuite dans la colonne "Email de validation".
+ */
+function envoyerEmailValidation_(m, adversaire) {
+  var resume = m.j1 + ' ' + m.b1 + ' - ' + m.b2 + ' ' + m.j2 +
+    ' (étoiles : ' + m.j1 + ' ' + String(m.e1).replace('.', ',') +
+    ', ' + m.j2 + ' ' + String(m.e2).replace('.', ',') + ')';
+  var horodatage = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd/MM/yyyy HH:mm');
+  try {
+    if (adversaire && adversaire.email) {
+      var lien = lienValidation_(m.code);
+      MailApp.sendEmail({
+        name: NOM_EXPEDITEUR,
+        to: adversaire.email,
+        replyTo: emailOrganisateur_(),
+        subject: 'Prime League : confirme ton match contre ' + m.j1,
+        body:
+          'Salut ' + m.j2 + ',\n\n' +
+          m.j1 + ' a déclaré le résultat suivant :\n' + resume + '\n\n' +
+          'Pour confirmer ou contester ce résultat, ouvre ce lien :\n' + lien + '\n\n' +
+          "Le match comptera au classement dès que tu l'auras confirmé.",
+        htmlBody:
+          '<p>Salut ' + echapper_(m.j2) + ',</p>' +
+          '<p>' + echapper_(m.j1) + ' a déclaré le résultat suivant :</p>' +
+          '<p style="font-size:16px"><b>' + echapper_(resume) + '</b></p>' +
+          '<p><a href="' + lien + '">Confirmer ou contester ce résultat</a></p>' +
+          '<p>Le match comptera au classement dès que tu l\'auras confirmé.</p>'
+      });
+      return 'Envoyé à ' + adversaire.email + ' le ' + horodatage;
+    }
     MailApp.sendEmail({
       name: NOM_EXPEDITEUR,
       to: emailOrganisateur_(),
-      subject: 'Prime League : match ' + id + ' sans email adversaire',
-      htmlBody: '<p>Le match ' + id + ' (' + echapper_(resume) + ") n'a pas pu être envoyé en validation, " +
+      subject: 'Prime League : match ' + m.id + ' sans email adversaire',
+      htmlBody: '<p>Le match ' + m.id + ' (' + echapper_(resume) + ") n'a pas pu être envoyé en validation, " +
         "car l'adversaire n'a pas d'email dans l'onglet Joueurs. Tu peux le valider à la main dans l'onglet Matchs.</p>"
     });
+    return "Pas d'email adversaire : organisateur prévenu le " + horodatage;
+  } catch (err) {
+    console.error('Envoi impossible pour ' + m.id + ' : ' + err);
+    return 'ÉCHEC le ' + horodatage + ' : ' + (err && err.message ? err.message : err);
   }
+}
+
+function noterEnvoi_(onglet, ligne, texte) {
+  var entete = onglet.getRange(1, COL.EMAIL);
+  if (!entete.getValue()) entete.setValue(TITRE_COL_EMAIL);
+  onglet.getRange(ligne, COL.EMAIL).setValue(texte);
 }
 
 function lienValidation_(code) {
@@ -333,7 +372,7 @@ function traiterValidation_(nv) {
       var destinataires = [emailOrganisateur_()];
       if (declarant && declarant.email) destinataires.push(declarant.email);
       MailApp.sendEmail({
-      name: NOM_EXPEDITEUR,
+        name: NOM_EXPEDITEUR,
         to: destinataires.join(','),
         subject: 'Prime League : le match ' + l[COL.ID - 1] + ' est contesté',
         htmlBody: '<p>' + echapper_(l[COL.J2 - 1]) + ' conteste le résultat <b>' + echapper_(resume) + '</b>.</p>' +
@@ -343,6 +382,82 @@ function traiterValidation_(nv) {
       });
     }
     return;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Renvoi et diagnostic des emails                                     */
+/* ------------------------------------------------------------------ */
+
+function renvoyerEmailsEnAttente() {
+  var ui = SpreadsheetApp.getUi();
+  var onglet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(ONGLET_MATCHS);
+  var der = onglet.getLastRow();
+  if (der < 2) { ui.alert('Aucun match dans l\'onglet Matchs.'); return; }
+  var lignes = onglet.getRange(2, 1, der - 1, NB_COLONNES_MATCHS).getValues();
+  var joueurs = lireJoueurs_();
+  var bilan = [];
+  for (var i = 0; i < lignes.length; i++) {
+    var l = lignes[i];
+    if (l[COL.STATUT - 1] !== STATUT_ATTENTE || !l[COL.CODE - 1]) continue;
+    var j2 = String(l[COL.J2 - 1]).trim();
+    var adversaire = joueurs.filter(function (j) { return j.nom === j2; })[0];
+    var resultat = envoyerEmailValidation_({
+      id: l[COL.ID - 1], j1: l[COL.J1 - 1], j2: j2,
+      e1: l[COL.ETOILES_J1 - 1], e2: l[COL.ETOILES_J2 - 1],
+      b1: l[COL.BUTS_J1 - 1], b2: l[COL.BUTS_J2 - 1], code: l[COL.CODE - 1]
+    }, adversaire);
+    noterEnvoi_(onglet, i + 2, resultat);
+    bilan.push(l[COL.ID - 1] + ' : ' + resultat);
+  }
+  ui.alert(bilan.length ? 'Emails renvoyés :\n\n' + bilan.join('\n') : 'Aucun match en attente.');
+}
+
+function diagnosticEmails() {
+  var ui = SpreadsheetApp.getUi();
+  var props = PropertiesService.getDocumentProperties();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var lignes = [];
+
+  lignes.push('Compte qui envoie les emails : ' + Session.getEffectiveUser().getEmail());
+  lignes.push('Emails encore autorisés aujourd\'hui : ' + MailApp.getRemainingDailyQuota());
+
+  var declencheurs = ScriptApp.getProjectTriggers().map(function (t) {
+    return t.getHandlerFunction() + ' (' + t.getEventType() + ')';
+  });
+  lignes.push('Déclencheurs : ' + (declencheurs.length ? declencheurs.join(', ') : 'AUCUN'));
+  if (declencheurs.join(' ').indexOf('surEnvoiFormulaire') < 0) {
+    lignes.push('  -> PROBLÈME : le déclencheur surEnvoiFormulaire manque.');
+  }
+
+  ['FORM_DECLARATION_ID', 'FORM_VALIDATION_ID'].forEach(function (cle) {
+    try {
+      FormApp.openById(props.getProperty(cle));
+      lignes.push(cle + ' : OK');
+    } catch (err) {
+      lignes.push(cle + ' : PROBLÈME (' + err.message + ')');
+    }
+  });
+
+  var joueursSansEmail = lireJoueurs_().filter(function (j) {
+    return !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(j.email);
+  }).map(function (j) { return j.nom; });
+  lignes.push('Joueurs sans email valide : ' + (joueursSansEmail.length ? joueursSansEmail.join(', ') : 'aucun'));
+
+  var dest = emailOrganisateur_();
+  var test = ui.alert('Diagnostic Prime League',
+    lignes.join('\n') + '\n\nEnvoyer un email de test à ' + dest + ' ?', ui.ButtonSet.YES_NO);
+  if (test !== ui.Button.YES) return;
+  try {
+    MailApp.sendEmail({
+      name: NOM_EXPEDITEUR,
+      to: dest,
+      subject: 'Prime League : email de test',
+      body: "Si tu lis ceci, l'envoi d'emails par le script fonctionne vers " + dest + '.'
+    });
+    ui.alert('Email de test envoyé à ' + dest + '. Vérifie la boîte de réception et les spams.');
+  } catch (err) {
+    ui.alert("Échec de l'envoi : " + err.message);
   }
 }
 
