@@ -15,7 +15,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <script>
   // Applique le thème choisi avant l'affichage, pour éviter un flash
-  try { var t = localStorage.getItem('pl-theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+  try {
+    var t = localStorage.getItem('pl-theme'), r = document.documentElement;
+    if (t === 'light' || t === 'dark') r.setAttribute('data-theme', t);
+    if (t === 'discret') { r.setAttribute('data-theme', 'light'); r.setAttribute('data-mode', 'discret'); }
+  } catch (e) {}
 </script>
 <style>
   /* ------------------------------------------------------------------
@@ -88,6 +92,68 @@
   }
   .theme:hover { background: var(--accent-soft); }
   .theme:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .actions { position: relative; }
+  .menu-theme {
+    position: absolute; top: calc(100% + 6px); right: 0; z-index: 5; min-width: 190px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 6px;
+    box-shadow: 0 8px 24px rgba(15, 20, 34, .14); display: grid; gap: 2px; text-align: left;
+  }
+  .menu-theme[hidden] { display: none; }
+  .menu-theme button {
+    font: inherit; font-size: 14px; color: var(--text); background: none; border: 0; border-radius: 6px;
+    padding: 8px 10px; display: flex; align-items: center; gap: 10px; cursor: pointer; text-align: left;
+  }
+  .menu-theme button:hover, .menu-theme button:focus-visible { background: var(--accent-soft); outline: none; }
+  .menu-theme button[aria-checked="true"] { font-weight: 700; }
+  .menu-theme button[aria-checked="true"]::after { content: "✓"; margin-left: auto; color: var(--accent); }
+  .menu-theme .ico { width: 20px; text-align: center; }
+  .menu-theme small { display: block; color: var(--muted); font-weight: 400; font-size: 12px; }
+
+  /* ------------------------------------------------------------------
+     Mode discret : rendu sobre façon tableur, sans photos ni couleurs
+     ------------------------------------------------------------------ */
+  :root[data-mode="discret"] {
+    --bg: #ffffff; --surface: #ffffff; --text: #202124; --muted: #6b6f76; --line: #dadce0;
+    --accent: #202124; --accent-soft: #f1f3f4; --win: #3c4043; --draw: #3c4043; --loss: #3c4043;
+    --gold: #dadce0; --silver: #dadce0; --bronze: #dadce0;
+    color-scheme: light;
+  }
+  [data-mode="discret"] body { font-family: Arial, Helvetica, sans-serif; font-size: 13px; }
+  [data-mode="discret"] .wrap { padding-top: 12px; }
+  [data-mode="discret"] header { margin-bottom: 12px; align-items: center; }
+  [data-mode="discret"] h1 { font-size: 15px; font-weight: 600; letter-spacing: 0; }
+  [data-mode="discret"] h1 span { color: inherit; }
+  [data-mode="discret"] .sub { font-size: 12px; }
+  [data-mode="discret"] h2 { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  [data-mode="discret"] section + section { margin-top: 16px; }
+  [data-mode="discret"] .photo, [data-mode="discret"] .podium, [data-mode="discret"] .chevron { display: none !important; }
+  [data-mode="discret"] .cta { background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 2px; padding: 4px 10px; font-size: 12px; font-weight: 400; }
+  [data-mode="discret"] .theme { width: 28px; height: 28px; border-radius: 2px; font-size: 14px; }
+  [data-mode="discret"] .maj { font-size: 11px; }
+  [data-mode="discret"] .note { border-radius: 0; font-size: 12px; padding: 6px 10px; }
+  [data-mode="discret"] .table-wrap { border-radius: 0; }
+  [data-mode="discret"] table { font-size: 12px; }
+  [data-mode="discret"] th, [data-mode="discret"] td { border: 1px solid var(--line); padding: 3px 8px; }
+  [data-mode="discret"] th { background: #f8f9fa; color: var(--text); text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 600; }
+  [data-mode="discret"] td.rang, [data-mode="discret"] td.joueur, [data-mode="discret"] td.elo { font-weight: 400; color: var(--text); }
+  [data-mode="discret"] .mvt { display: inline; margin: 0 0 0 4px; font-size: 10px; font-weight: 400; color: var(--muted); }
+  [data-mode="discret"] .forme .pastille { width: auto; height: auto; background: none; color: var(--text); font-weight: 400; font-size: 12px; border-radius: 0; }
+  [data-mode="discret"] .forme { gap: 2px; }
+  [data-mode="discret"] tr.ligne:hover td, [data-mode="discret"] tr.ligne[aria-expanded="true"] td { background: #e8f0fe; }
+  [data-mode="discret"] tr.detail > td { background: var(--surface); }
+  [data-mode="discret"] .fiche { gap: 6px; padding: 6px; }
+  [data-mode="discret"] .stat, [data-mode="discret"] .courbe { border-radius: 0; min-height: 0; padding: 8px; }
+  [data-mode="discret"] .stat .val { font-size: 16px; margin-top: 4px; }
+  [data-mode="discret"] .stat .lib, [data-mode="discret"] .courbe .lib { text-transform: none; letter-spacing: 0; font-size: 11px; }
+  [data-mode="discret"] .courbe .ligne-elo { stroke: #5f6368; stroke-width: 1.5; }
+  [data-mode="discret"] .courbe .pt { fill: #5f6368; }
+  [data-mode="discret"] .matchs { gap: 0; }
+  [data-mode="discret"] .match { border-radius: 0; padding: 4px 10px; margin-top: -1px; }
+  [data-mode="discret"] .match .score { font-size: 13px; font-weight: 600; }
+  [data-mode="discret"] .match .n { font-weight: 400; }
+  [data-mode="discret"] .gagnant .n { color: var(--text); font-weight: 600; }
+  [data-mode="discret"] .carte { border-radius: 0; }
+  [data-mode="discret"] footer { font-size: 11px; }
 
   .podium { display: grid; grid-template-columns: 1.5fr 1fr 1fr; align-items: end; gap: 12px; margin-bottom: 20px; }
   .podium .premier { padding: 18px 20px; }
@@ -127,7 +193,7 @@
     width: 20px; height: 20px; border-radius: 4px; color: #fff; font-size: 11px; font-weight: 700;
     display: inline-flex; align-items: center; justify-content: center;
   }
-  .V { background: var(--win); } .N { background: var(--draw); } .D { background: var(--loss); }
+  .pastille.V { background: var(--win); } .pastille.N { background: var(--draw); } .pastille.D { background: var(--loss); }
   .inactif td { color: var(--muted); }
   .inactif td.elo { color: var(--muted); }
 
@@ -233,7 +299,12 @@
     <div class="maj">
       <div class="actions">
         <a class="cta" id="cta" href="#" target="_blank" rel="noopener">Déclarer un match</a>
-        <button type="button" class="theme" id="theme" aria-label="Changer de thème"></button>
+        <button type="button" class="theme" id="theme" aria-label="Affichage" aria-haspopup="true" aria-expanded="false"></button>
+        <div class="menu-theme" id="menu-theme" role="menu" hidden>
+          <button type="button" role="menuitemradio" data-choix="light"><span class="ico">☀️</span><span>Clair</span></button>
+          <button type="button" role="menuitemradio" data-choix="dark"><span class="ico">🌙</span><span>Sombre</span></button>
+          <button type="button" role="menuitemradio" data-choix="discret"><span class="ico">▦</span><span>Discret<small>Sobre, sans photos</small></span></button>
+        </div>
       </div>
       <div id="maj">Chargement…</div>
     </div>
@@ -701,33 +772,50 @@ function afficher(classement, matchs, demo) {
 
 document.getElementById('cta').href = CONFIG.lienFormulaire;
 
-// Bouton clair / sombre (le choix est mémorisé sur l'appareil)
+// Menu d'affichage : clair, sombre ou discret (le choix est mémorisé sur l'appareil)
 (function () {
   var bouton = document.getElementById('theme');
+  var menu = document.getElementById('menu-theme');
   var racine = document.documentElement;
   var media = window.matchMedia('(prefers-color-scheme: dark)');
-  function sombre() {
+  var icones = { light: '☀️', dark: '🌙', discret: '▦' };
+  function actuel() {
+    if (racine.getAttribute('data-mode') === 'discret') return 'discret';
     var t = racine.getAttribute('data-theme');
-    return t ? t === 'dark' : media.matches;
+    return t ? t : (media.matches ? 'dark' : 'light');
   }
-  function majBouton() {
-    var s = sombre();
-    bouton.textContent = s ? '☀️' : '🌙';
-    bouton.setAttribute('aria-label', s ? 'Passer en mode clair' : 'Passer en mode sombre');
-    bouton.title = bouton.getAttribute('aria-label');
+  function maj() {
+    var c = actuel();
+    bouton.textContent = icones[c];
+    bouton.title = 'Affichage';
+    menu.querySelectorAll('[data-choix]').forEach(function (b) {
+      b.setAttribute('aria-checked', b.getAttribute('data-choix') === c ? 'true' : 'false');
+    });
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', s ? '#0f1422' : '#1f3864');
+    if (meta) meta.setAttribute('content', c === 'dark' ? '#0f1422' : c === 'discret' ? '#ffffff' : '#1f3864');
+    // La courbe d'ELO dépend du style : on la redessine
+    window.dispatchEvent(new Event('resize'));
   }
-  bouton.addEventListener('click', function () {
-    var t = sombre() ? 'light' : 'dark';
-    racine.setAttribute('data-theme', t);
-    try { localStorage.setItem('pl-theme', t); } catch (e) {}
-    majBouton();
+  function ouvrir(o) {
+    menu.hidden = !o;
+    bouton.setAttribute('aria-expanded', o ? 'true' : 'false');
+    if (o) { var b = menu.querySelector('[aria-checked="true"]') || menu.querySelector('button'); b.focus(); }
+  }
+  bouton.addEventListener('click', function (e) { e.stopPropagation(); ouvrir(menu.hidden); });
+  menu.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-choix]');
+    if (!b) return;
+    var c = b.getAttribute('data-choix');
+    if (c === 'discret') { racine.setAttribute('data-theme', 'light'); racine.setAttribute('data-mode', 'discret'); }
+    else { racine.setAttribute('data-theme', c); racine.removeAttribute('data-mode'); }
+    try { localStorage.setItem('pl-theme', c); } catch (err) {}
+    ouvrir(false); bouton.focus(); maj();
   });
-  if (media.addEventListener) media.addEventListener('change', majBouton);
-  majBouton();
-})();
-document.getElementById('classement').addEventListener('click', function (e) {
+  document.addEventListener('click', function (e) { if (!menu.hidden && !menu.contains(e.target)) ouvrir(false); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !menu.hidden) { ouvrir(false); bouton.focus(); } });
+  if (media.addEventListener) media.addEventListener('change', maj);
+  maj();
+})();document.getElementById('classement').addEventListener('click', function (e) {
   var tr = e.target.closest('tr.ligne');
   if (tr) basculer(tr);
 });
