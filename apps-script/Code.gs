@@ -69,10 +69,11 @@ function onOpen() {
     .addItem('Installer les formulaires', 'installer')
     .addItem('Mettre à jour la liste des joueurs', 'majListeJoueurs')
     .addItem('Afficher les liens des formulaires', 'afficherLiens')
-    .addSeparator()
-    .addItem('Renvoyer les emails des matchs en attente', 'renvoyerEmailsEnAttente')
-    .addItem('Diagnostic des emails', 'diagnosticEmails')
-    .addItem('Envoyer les emails depuis mon compte', 'envoyerDepuisMonCompte')
+    .addItem('Réinstaller le déclencheur', 'envoyerDepuisMonCompte')
+    // Emails de validation en pause : menus à réactiver avec l'envoi.
+    // .addSeparator()
+    // .addItem('Renvoyer les emails des matchs en attente', 'renvoyerEmailsEnAttente')
+    // .addItem('Diagnostic des emails', 'diagnosticEmails')
     .addToUi();
 }
 
@@ -175,12 +176,12 @@ function envoyerDepuisMonCompte() {
     return;
   }
   var ok = ui.alert('Prime League',
-    'Les emails de validation seront envoyés depuis ' + moi + '.\n\n' +
-    "Ensuite, l'ancien compte devra supprimer ses propres déclencheurs (Apps Script > Déclencheurs), " +
-    'sinon chaque email partira deux fois. Continuer ?', ui.ButtonSet.YES_NO);
+    'Le déclencheur va être installé avec le compte ' + moi + '.\n\n' +
+    "Un seul compte doit avoir les déclencheurs (Apps Script > Déclencheurs), " +
+    'sinon chaque match sera ajouté deux fois. Continuer ?', ui.ButtonSet.YES_NO);
   if (ok !== ui.Button.YES) return;
   creerDeclencheurs_(SpreadsheetApp.getActiveSpreadsheet());
-  ui.alert('C\'est fait : les emails partent maintenant de ' + moi + '.');
+  ui.alert('C\'est fait : le déclencheur tourne maintenant avec ' + moi + '.');
 }
 
 function attendreOngletReponses_(ss, formId) {
@@ -313,10 +314,15 @@ function traiterDeclaration_(nv) {
 
   if (statut !== STATUT_ATTENTE) return;
 
-  var resultat = envoyerEmailValidation_({
-    id: id, j1: j1, j2: j2, e1: e1, e2: e2, b1: b1, b2: b2, code: code
-  }, adversaire);
-  noterEnvoi_(onglet, ligne, resultat);
+  // EMAIL DE VALIDATION EN PAUSE (sécurité Apps Script côté Primelis) :
+  // l'organisateur passe le statut à "Validé" à la main dans l'onglet Matchs.
+  // Pour réactiver l'envoi, supprimer les "//" des 4 lignes ci-dessous et
+  // supprimer la ligne noterEnvoi_ qui suit.
+  // var resultat = envoyerEmailValidation_({
+  //   id: id, j1: j1, j2: j2, e1: e1, e2: e2, b1: b1, b2: b2, code: code
+  // }, adversaire);
+  // noterEnvoi_(onglet, ligne, resultat);
+  noterEnvoi_(onglet, ligne, 'Emails désactivés : validation manuelle');
 }
 
 /**
