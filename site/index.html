@@ -13,6 +13,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="PrimeLeague">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
+<script>
+  // Applique le thème choisi avant l'affichage, pour éviter un flash
+  try { var t = localStorage.getItem('pl-theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
 <style>
   /* ------------------------------------------------------------------
      Couleurs : modifiables ici (les visuels définitifs viendront plus tard)
@@ -75,6 +79,15 @@
   }
   .cta:hover { opacity: .88; }
   .cta:focus-visible { outline: 3px solid var(--accent-soft); outline-offset: 2px; }
+  .actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-bottom: 6px; }
+  .actions .cta { margin-bottom: 0; }
+  .theme {
+    width: 42px; height: 42px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--text); font-size: 18px; line-height: 1; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .theme:hover { background: var(--accent-soft); }
+  .theme:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
   .podium { display: grid; grid-template-columns: 1.5fr 1fr 1fr; align-items: end; gap: 12px; margin-bottom: 20px; }
   .podium .premier { padding: 18px 20px; }
@@ -201,6 +214,7 @@
     .masque-mobile { display: none; }
     header { flex-direction: column; align-items: center; text-align: center; gap: 12px; }
     .maj { text-align: center; }
+    .actions { justify-content: center; }
     .fiche { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 8px; gap: 6px; }
     .courbe { grid-column: 1 / -1; }
     .stat { min-height: 0; padding: 10px 6px; }
@@ -217,7 +231,10 @@
       <div class="sub">Classement FIFA Interne Primelis</div>
     </div>
     <div class="maj">
-      <a class="cta" id="cta" href="#" target="_blank" rel="noopener">Déclarer un match</a>
+      <div class="actions">
+        <a class="cta" id="cta" href="#" target="_blank" rel="noopener">Déclarer un match</a>
+        <button type="button" class="theme" id="theme" aria-label="Changer de thème"></button>
+      </div>
       <div id="maj">Chargement…</div>
     </div>
   </header>
@@ -683,6 +700,33 @@ function afficher(classement, matchs, demo) {
 }
 
 document.getElementById('cta').href = CONFIG.lienFormulaire;
+
+// Bouton clair / sombre (le choix est mémorisé sur l'appareil)
+(function () {
+  var bouton = document.getElementById('theme');
+  var racine = document.documentElement;
+  var media = window.matchMedia('(prefers-color-scheme: dark)');
+  function sombre() {
+    var t = racine.getAttribute('data-theme');
+    return t ? t === 'dark' : media.matches;
+  }
+  function majBouton() {
+    var s = sombre();
+    bouton.textContent = s ? '☀️' : '🌙';
+    bouton.setAttribute('aria-label', s ? 'Passer en mode clair' : 'Passer en mode sombre');
+    bouton.title = bouton.getAttribute('aria-label');
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', s ? '#0f1422' : '#1f3864');
+  }
+  bouton.addEventListener('click', function () {
+    var t = sombre() ? 'light' : 'dark';
+    racine.setAttribute('data-theme', t);
+    try { localStorage.setItem('pl-theme', t); } catch (e) {}
+    majBouton();
+  });
+  if (media.addEventListener) media.addEventListener('change', majBouton);
+  majBouton();
+})();
 document.getElementById('classement').addEventListener('click', function (e) {
   var tr = e.target.closest('tr.ligne');
   if (tr) basculer(tr);
