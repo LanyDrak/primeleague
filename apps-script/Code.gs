@@ -72,6 +72,7 @@ function onOpen() {
     .addSeparator()
     .addItem('Renvoyer les emails des matchs en attente', 'renvoyerEmailsEnAttente')
     .addItem('Diagnostic des emails', 'diagnosticEmails')
+    .addItem('Envoyer les emails depuis mon compte', 'envoyerDepuisMonCompte')
     .addToUi();
 }
 
@@ -139,13 +140,47 @@ function installer() {
     ONGLET_VAL_ID: String(ongletVal.getSheetId())
   });
 
-  // Déclencheurs : réponse à un formulaire, modification de la liste des joueurs
-  ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
-  ScriptApp.newTrigger('surEnvoiFormulaire').forSpreadsheet(ss).onFormSubmit().create();
-  ScriptApp.newTrigger('surModification').forSpreadsheet(ss).onEdit().create();
+  creerDeclencheurs_(ss);
 
   majListeJoueurs();
   afficherLiens();
+}
+
+// Déclencheurs : réponse à un formulaire, modification de la liste des joueurs.
+// Un déclencheur s'exécute avec le compte Google qui l'a créé : c'est ce compte
+// qui envoie les emails. getProjectTriggers ne renvoie que les déclencheurs du
+// compte connecté.
+function creerDeclencheurs_(ss) {
+  ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('surEnvoiFormulaire').forSpreadsheet(ss).onFormSubmit().create();
+  ScriptApp.newTrigger('surModification').forSpreadsheet(ss).onEdit().create();
+}
+
+/**
+ * Fait envoyer les emails par le compte connecté (par exemple l'adresse
+ * professionnelle), sans recréer les formulaires. Il faut ensuite supprimer
+ * les déclencheurs de l'ancien compte, sinon les emails partent en double.
+ */
+function envoyerDepuisMonCompte() {
+  var ui = SpreadsheetApp.getUi();
+  var props = PropertiesService.getDocumentProperties();
+  var moi = Session.getEffectiveUser().getEmail();
+  try {
+    FormApp.openById(props.getProperty('FORM_DECLARATION_ID'));
+    FormApp.openById(props.getProperty('FORM_VALIDATION_ID'));
+  } catch (err) {
+    ui.alert("Le compte " + moi + " n'a pas accès aux formulaires. Le propriétaire doit d'abord " +
+      "l'ajouter comme collaborateur sur les deux formulaires (Prime League > Afficher les liens des formulaires).\n\n" +
+      'Détail : ' + err.message);
+    return;
+  }
+  var ok = ui.alert('Prime League',
+    'Les emails de validation seront envoyés depuis ' + moi + '.\n\n' +
+    "Ensuite, l'ancien compte devra supprimer ses propres déclencheurs (Apps Script > Déclencheurs), " +
+    'sinon chaque email partira deux fois. Continuer ?', ui.ButtonSet.YES_NO);
+  if (ok !== ui.Button.YES) return;
+  creerDeclencheurs_(SpreadsheetApp.getActiveSpreadsheet());
+  ui.alert('C\'est fait : les emails partent maintenant de ' + moi + '.');
 }
 
 function attendreOngletReponses_(ss, formId) {
