@@ -168,6 +168,22 @@
   .podium .elo { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .podium .elo small { font-size: 13px; font-weight: 500; color: var(--muted); }
 
+  /* Compte à rebours de fin de saison */
+  .compte { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; margin-bottom: 16px; padding: 12px 16px; }
+  .compte-titre { font-size: 14px; font-weight: 600; color: var(--muted); }
+  .compte-titre span:first-child { color: var(--accent); font-weight: 800; }
+  .compte-blocs { display: flex; gap: 8px; }
+  .compte-blocs .bloc { min-width: 54px; text-align: center; background: var(--accent-soft); border-radius: 8px; padding: 4px 6px; }
+  .compte-blocs .n { display: block; font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--accent); line-height: 1.2; }
+  .compte-blocs .u { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .compte-fini { font-weight: 700; color: var(--accent); }
+  [data-mode="discret"] .compte { border-radius: 0; padding: 6px 10px; margin-bottom: 12px; }
+  [data-mode="discret"] .compte-titre { font-size: 12px; font-weight: 400; color: var(--text); }
+  [data-mode="discret"] .compte-titre span:first-child { color: inherit; font-weight: 600; }
+  [data-mode="discret"] .compte-blocs .bloc { background: none; padding: 0; min-width: 0; display: flex; gap: 3px; align-items: baseline; }
+  [data-mode="discret"] .compte-blocs .n { font-size: 13px; font-weight: 600; display: inline; }
+  [data-mode="discret"] .compte-blocs .u { display: inline; font-size: 11px; text-transform: none; letter-spacing: 0; }
+
   h2 { font-size: 17px; margin: 0 0 10px; }
   section + section { margin-top: 24px; }
 
@@ -288,6 +304,9 @@
     .stat { min-height: 0; padding: 10px 6px; }
     .stat .val { font-size: 20px; }
     .stat .lib { font-size: 10px; }
+    .compte { justify-content: center; text-align: center; }
+    .compte-blocs .bloc { min-width: 48px; }
+    .compte-blocs .n { font-size: 20px; }
   }
 </style>
 </head>
@@ -311,6 +330,11 @@
       <div id="maj">Chargement…</div>
     </div>
   </header>
+
+  <div class="compte carte" id="compte" hidden>
+    <div class="compte-titre"><span id="compte-saison">Saison 1</span> · fin le <span id="compte-date"></span></div>
+    <div class="compte-blocs" id="compte-blocs" role="timer" aria-live="off"></div>
+  </div>
 
   <div id="message"></div>
   <div class="podium" id="podium"></div>
@@ -362,6 +386,9 @@ var CONFIG = {
   extensionPhotos: '.jpg',
   lienFormulaire: 'https://docs.google.com/forms/d/1JfmqoJWoNIfwXcTMsEMyEuQcr-CF9FVWSoqKKPsAonU/viewform',
   nbDerniersMatchs: 10,
+  // Fin de la saison 1 : nuit du vendredi 8 au samedi 9 janvier 2027, minuit heure de Paris (+01:00 en hiver)
+  finSaison: '2027-01-09T00:00:00+01:00',
+  nomSaison: 'Saison 1',
   serieMin: 5,               // victoires (🔥) ou défaites (❄️) d'affilée pour afficher un symbole
   rafraichissementMinutes: 5
 };
@@ -576,10 +603,10 @@ function carteAdversaire(titre, o, resultat) {
 }
 
 function ficheJoueur(nom, hist, eloDepart) {
-  var meilleur = eloDepart, quand = 'Au départ';
+  var meilleur = eloDepart, quand = hist.length ? 'Au départ' : 'Aucun match';
   hist.forEach(function (m) { if (m.apres > meilleur) { meilleur = m.apres; quand = 'Le ' + m.date; } });
   return '<div class="fiche">' +
-    '<div class="stat"><div class="lib">Meilleur ELO</div><div class="val">' + Math.round(meilleur) + '</div>' +
+    '<div class="stat"><div class="lib">Meilleur ELO</div><div class="val">' + (hist.length ? Math.round(meilleur) : '–') + '</div>' +
     '<div class="sous">' + echapper(quand) + '</div></div>' +
     carteAdversaire('Bouc émissaire', adversairePhare(hist, 1), 1) +
     carteAdversaire('Bête noire', adversairePhare(hist, 0), 0) +
@@ -742,7 +769,7 @@ function afficher(classement, matchs, demo) {
       return '<tr class="ligne' + (joue ? '' : ' inactif') + '" data-joueur="' + echapper(nom) + '" tabindex="0" aria-expanded="' + ouvert + '">' +
         '<td class="rang">' + (joue ? (i + 1) + (anciensRangs ? badgeMouvement(anciensRangs[nom], i + 1) : '') : '–') + '</td>' +
         '<td class="g joueur"><span class="ident">' + photo(j['Joueur'], 30) + '<span class="txt">' + echapper(j['Joueur']) + badgeSerie(forme[nom]) + '</span><span class="chevron" aria-hidden="true">▾</span></span></td>' +
-        '<td class="elo">' + Math.round(nombre(j['ELO'])) + '</td>' +
+        '<td class="elo">' + (joue ? Math.round(nombre(j['ELO'])) : '–') + '</td>' +
         '<td>' + (nombre(j['Matchs joués']) || 0) + '</td>' +
         '<td>' + (nombre(j['Victoires']) || 0) + '</td>' +
         '<td>' + (nombre(j['Nuls']) || 0) + '</td>' +
@@ -790,6 +817,35 @@ function afficher(classement, matchs, demo) {
 }
 
 document.getElementById('cta').href = CONFIG.lienFormulaire;
+
+// Compte à rebours jusqu'à la fin de la saison (CONFIG.finSaison)
+(function () {
+  var fin = new Date(CONFIG.finSaison);
+  var zone = document.getElementById('compte');
+  if (!CONFIG.finSaison || isNaN(fin)) return;
+  var blocs = document.getElementById('compte-blocs');
+  document.getElementById('compte-saison').textContent = CONFIG.nomSaison || 'Saison';
+  document.getElementById('compte-date').textContent =
+    fin.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' });
+  zone.hidden = false;
+  var minuterie;
+  function deux(n) { return (n < 10 ? '0' : '') + n; }
+  function tic() {
+    var reste = Math.floor((fin - new Date()) / 1000);
+    if (reste <= 0) {
+      blocs.innerHTML = '<span class="compte-fini">' + echapper(CONFIG.nomSaison || 'La saison') + ' terminée 🏁</span>';
+      clearInterval(minuterie);
+      return;
+    }
+    var j = Math.floor(reste / 86400), h = Math.floor(reste % 86400 / 3600),
+        m = Math.floor(reste % 3600 / 60), s = reste % 60;
+    blocs.innerHTML = [[j, j > 1 ? 'jours' : 'jour'], [deux(h), 'h'], [deux(m), 'min'], [deux(s), 's']].map(function (x) {
+      return '<span class="bloc"><span class="n">' + x[0] + '</span><span class="u">' + x[1] + '</span></span>';
+    }).join('');
+  }
+  tic();
+  minuterie = setInterval(tic, 1000);
+})();
 
 // Menu d'affichage : clair, sombre ou discret (le choix est mémorisé sur l'appareil)
 (function () {
