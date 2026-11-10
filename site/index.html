@@ -386,8 +386,8 @@ var CONFIG = {
   extensionPhotos: '.jpg',
   lienFormulaire: 'https://docs.google.com/forms/d/1JfmqoJWoNIfwXcTMsEMyEuQcr-CF9FVWSoqKKPsAonU/viewform',
   nbDerniersMatchs: 10,
-  // Fin de la saison 1 : nuit du vendredi 8 au samedi 9 janvier 2027, minuit heure de Paris (+01:00 en hiver)
-  finSaison: '2027-01-09T00:00:00+01:00',
+  // Fin de la saison 1 : vendredi 15 janvier 2027 à 20 h, heure de Paris (+01:00 en hiver)
+  finSaison: '2027-01-15T20:00:00+01:00',
   nomSaison: 'Saison 1',
   serieMin: 5,               // victoires (🔥) ou défaites (❄️) d'affilée pour afficher un symbole
   rafraichissementMinutes: 5
@@ -826,7 +826,8 @@ document.getElementById('cta').href = CONFIG.lienFormulaire;
   var blocs = document.getElementById('compte-blocs');
   document.getElementById('compte-saison').textContent = CONFIG.nomSaison || 'Saison';
   document.getElementById('compte-date').textContent =
-    fin.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' });
+    fin.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' }) +
+    ' à ' + fin.toLocaleTimeString('fr-FR', { hour: 'numeric', minute: '2-digit', timeZone: 'Europe/Paris' }).replace(':00', ' h').replace(':', ' h ');
   zone.hidden = false;
   var minuterie;
   function deux(n) { return (n < 10 ? '0' : '') + n; }
