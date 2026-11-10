@@ -70,6 +70,7 @@ function onOpen() {
     .addItem('Mettre à jour la liste des joueurs', 'majListeJoueurs')
     .addItem('Afficher les liens des formulaires', 'afficherLiens')
     .addItem('Réinstaller le déclencheur', 'envoyerDepuisMonCompte')
+    .addItem('Rattraper les déclarations manquantes', 'rattraperDeclarations')
     // Emails de validation en pause : menus à réactiver avec l'envoi.
     // .addSeparator()
     // .addItem('Renvoyer les emails des matchs en attente', 'renvoyerEmailsEnAttente')
@@ -155,6 +156,8 @@ function creerDeclencheurs_(ss) {
   ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('surEnvoiFormulaire').forSpreadsheet(ss).onFormSubmit().create();
   ScriptApp.newTrigger('surModification').forSpreadsheet(ss).onEdit().create();
+  // Filet de sécurité : toutes les heures, reprend les déclarations oubliées.
+  ScriptApp.newTrigger('rattraperDeclarationsAuto').timeBased().everyHours(1).create();
 }
 
 /**
@@ -274,6 +277,76 @@ function surEnvoiFormulaire(e) {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Rattrapage des déclarations absentes de l'onglet Matchs             */
+/* ------------------------------------------------------------------ */
+
+function rattraperDeclarations() {
+  var n = rattraperDeclarations_();
+  SpreadsheetApp.getUi().alert(n ? n + ' déclaration(s) ajoutée(s) dans Matchs.'
+    : 'Rien à rattraper : toutes les déclarations sont dans Matchs.');
+}
+
+function rattraperDeclarationsAuto() {
+  rattraperDeclarations_();
+}
+
+function dateDe_(v) {
+  if (v instanceof Date) return v;
+  var m = String(v).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  return m ? new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5], +(m[6] || 0)) : null;
+}
+
+/**
+ * Ajoute dans Matchs chaque réponse du formulaire de déclaration qui n'y est
+ * pas encore (même déclarant, adversaire, score, à 15 minutes près).
+ * Renvoie le nombre de matchs ajoutés.
+ */
+function rattraperDeclarations_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var props = PropertiesService.getDocumentProperties();
+  var idDecl = props.getProperty('ONGLET_DECL_ID');
+  var rep = ss.getSheets().filter(function (o) { return String(o.getSheetId()) === idDecl; })[0] ||
+    ss.getSheetByName(ONGLET_REP_DECLARATIONS);
+  var matchs = ss.getSheetByName(ONGLET_MATCHS);
+  if (!rep || rep.getLastRow() < 2) return 0;
+
+  var lock = LockService.getDocumentLock();
+  lock.waitLock(30000);
+  try {
+    var donnees = rep.getRange(1, 1, rep.getLastRow(), rep.getLastColumn()).getDisplayValues();
+    var dates = rep.getRange(1, 1, rep.getLastRow(), 1).getValues();
+    var entetes = donnees[0];
+    var existants = matchs.getLastRow() < 2 ? [] :
+      matchs.getRange(2, 1, matchs.getLastRow() - 1, NB_COLONNES_MATCHS).getValues();
+    var ajoutes = 0;
+    for (var i = 1; i < donnees.length; i++) {
+      var ligne = donnees[i];
+      if (!ligne[0]) continue;
+      var nv = {};
+      entetes.forEach(function (t, k) { nv[t] = [ligne[k]]; });
+      var quand = dateDe_(dates[i][0]) || dateDe_(ligne[0]);
+      var j1 = valeur_(nv, Q_JOUEUR), j2 = valeur_(nv, Q_ADVERSAIRE);
+      var b1 = Number(valeur_(nv, Q_BUTS_JOUEUR)), b2 = Number(valeur_(nv, Q_BUTS_ADVERSAIRE));
+      var dejaLa = existants.some(function (l) {
+        var d = dateDe_(l[COL.DECLARE_LE - 1]);
+        return String(l[COL.J1 - 1]).trim() === j1 && String(l[COL.J2 - 1]).trim() === j2 &&
+          Number(l[COL.BUTS_J1 - 1]) === b1 && Number(l[COL.BUTS_J2 - 1]) === b2 &&
+          (!d || !quand || Math.abs(d - quand) < 15 * 60 * 1000);
+      });
+      // Une réponse de moins de 2 minutes est encore en cours de traitement
+      // par le déclencheur du formulaire : on la laisse pour éviter un doublon.
+      if (dejaLa || (quand && new Date() - quand < 2 * 60 * 1000)) continue;
+      traiterDeclaration_(nv, quand);
+      existants.push([null, quand, j1, null, b1, j2, null, b2]);
+      ajoutes++;
+    }
+    return ajoutes;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function valeur_(namedValues, question) {
   var v = namedValues[question];
   return v && v.length ? String(v[0]).trim() : '';
@@ -283,7 +356,7 @@ function etoiles_(texte) {
   return Number(String(texte).replace(',', '.'));
 }
 
-function traiterDeclaration_(nv) {
+function traiterDeclaration_(nv, dateDeclaration) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var onglet = ss.getSheetByName(ONGLET_MATCHS);
   var joueurs = lireJoueurs_();
@@ -294,10 +367,18 @@ function traiterDeclaration_(nv) {
   var b1 = Number(valeur_(nv, Q_BUTS_JOUEUR));
   var b2 = Number(valeur_(nv, Q_BUTS_ADVERSAIRE));
 
-  var numero = Math.max(onglet.getLastRow(), 1); // ligne 1 = en-têtes
+  // Numéro suivant le plus grand ID existant (robuste aux lignes ajoutées à la main)
+  var numero = 1;
+  if (onglet.getLastRow() > 1) {
+    onglet.getRange(2, COL.ID, onglet.getLastRow() - 1, 1).getValues().forEach(function (l) {
+      var n = Number(String(l[0]).replace(/^M/, ''));
+      if (n >= numero) numero = n + 1;
+    });
+  }
   var id = 'M' + ('000' + numero).slice(-4);
   var code = id + '-' + Utilities.getUuid().slice(0, 6).toUpperCase();
   var maintenant = new Date();
+  var declareLe = dateDeclaration || maintenant;
 
   var adversaire = joueurs.filter(function (j) { return j.nom === j2; })[0];
   var statut = STATUT_ATTENTE;
@@ -309,7 +390,7 @@ function traiterDeclaration_(nv) {
     commentaire = "Email de l'adversaire manquant dans l'onglet Joueurs : validation à faire par l'organisateur.";
   }
 
-  onglet.appendRow([id, maintenant, j1, e1, b1, j2, e2, b2, statut, maintenant, commentaire, code]);
+  onglet.appendRow([id, declareLe, j1, e1, b1, j2, e2, b2, statut, maintenant, commentaire, code]);
   var ligne = onglet.getLastRow();
 
   if (statut !== STATUT_ATTENTE) return;
