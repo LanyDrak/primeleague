@@ -241,6 +241,7 @@
   .courbe .pt { fill: var(--accent); stroke: var(--surface); stroke-width: 2; }
   .courbe .pt.actif { r: 6; }
   .infobulle { position: absolute; pointer-events: none; background: var(--text); color: var(--bg); font-size: 12px; border-radius: 6px; padding: 6px 8px; white-space: nowrap; transform: translate(-50%, calc(-100% - 10px)); line-height: 1.35; z-index: 2; }
+  .infobulle.dessous { transform: translate(-50%, 10px); }
   .infobulle[hidden] { display: none; }
 
   /* Photos des joueurs, ratio 25/35 */
@@ -491,6 +492,13 @@ function photo(nom, largeur) {
     '</span>';
 }
 
+// Ordre du classement : ELO arrondi (celui qui est affiché), puis différence
+// de buts, puis buts marqués, puis ordre alphabétique. Même règle que le Sheet.
+function departage(a, b) {
+  return Math.round(b.elo) - Math.round(a.elo) || b.diff - a.diff || b.bp - a.bp ||
+    a.nom.localeCompare(b.nom, 'fr');
+}
+
 function signe(n) {
   var r = Math.round(n);
   return (r > 0 ? '+' : '') + r;
@@ -660,9 +668,18 @@ function dessinerCourbe(zone, hist, eloDepart) {
       '<b>' + Math.round(p.elo) + ' ELO</b> (' + signe(p.m.pts) + ')<br>' +
       ({ 1: 'Victoire', 0: 'Défaite' }[p.m.res] || 'Nul') + ' ' + echapper(p.m.bp) + '-' + echapper(p.m.bc) +
       ' contre ' + echapper(p.m.adv) + '<br>' + echapper(p.m.date);
-    bulle.style.left = (trace.offsetLeft + x(i) * r.width / W) + 'px';
-    bulle.style.top = (trace.offsetTop + y(p.elo) * r.height / H) + 'px';
     bulle.hidden = false;
+    // Garde l'infobulle entière dans la fiche : sinon, au premier ou au dernier
+    // point, elle déborde et le tableau la coupe (nom de l'adversaire illisible)
+    var cx = trace.offsetLeft + x(i) * r.width / W, cy = trace.offsetTop + y(p.elo) * r.height / H;
+    var demi = bulle.offsetWidth / 2, marge = 4;
+    var gauche = Math.max(demi + marge, Math.min(cx, zone.clientWidth - demi - marge));
+    // Pas la place au-dessus (haut du tableau) : on l'affiche sous le point
+    var cadre = zone.closest('.table-wrap') || zone;
+    var dessous = r.top + y(p.elo) * r.height / H - cadre.getBoundingClientRect().top < bulle.offsetHeight + 14;
+    bulle.classList.toggle('dessous', dessous);
+    bulle.style.left = gauche + 'px';
+    bulle.style.top = cy + 'px';
   }
   function cacher() { bulle.hidden = true; cercles.forEach(function (c) { c.classList.remove('actif'); }); }
   surface.addEventListener('mousemove', montrer);
@@ -702,17 +719,15 @@ function rangsSemaineDerniere(matchs, depart, maintenant) {
     var d = lireDate(m['Déclaré le']);
     if (!d || d >= lundi) return;
     var b1 = nombre(m['Buts J1']) || 0, b2 = nombre(m['Buts J2']) || 0;
-    [[m['Joueur 1'], nombre(m['ELO après J1']), b1 - b2], [m['Joueur 2'], nombre(m['ELO après J2']), b2 - b1]]
+    [[m['Joueur 1'], nombre(m['ELO après J1']), b1, b2], [m['Joueur 2'], nombre(m['ELO après J2']), b2, b1]]
       .forEach(function (x) {
-        var e = etat[x[0]] = etat[x[0]] || { elo: depart, diff: 0 };
-        e.elo = x[1]; e.diff += x[2];
+        var e = etat[x[0]] = etat[x[0]] || { nom: x[0], elo: depart, diff: 0, bp: 0 };
+        e.elo = x[1]; e.diff += x[2] - x[3]; e.bp += x[2];
       });
   });
   var noms = Object.keys(etat);
   if (!noms.length) return null; // pas encore de classement la semaine dernière
-  noms.sort(function (a, b) {
-    return Math.round(etat[b].elo) - Math.round(etat[a].elo) || etat[b].diff - etat[a].diff;
-  });
+  noms.sort(function (a, b) { return departage(etat[a], etat[b]); });
   var rangs = {};
   noms.forEach(function (n, i) { rangs[n] = i + 1; });
   return rangs;
@@ -739,6 +754,11 @@ function afficher(classement, matchs, demo) {
 
   // Les joueurs qui ont déjà joué passent devant ceux qui n'ont pas encore joué
   var actifs = classement.filter(function (j) { return nombre(j['Matchs joués']) > 0; });
+  var cle = function (j) {
+    return { nom: j['Joueur'] || '', elo: nombre(j['ELO']) || 0,
+      diff: nombre(j['Différence de buts']) || 0, bp: nombre(j['Buts marqués']) || 0 };
+  };
+  actifs.sort(function (a, b) { return departage(cle(a), cle(b)); });
   var inactifs = classement.filter(function (j) { return !(nombre(j['Matchs joués']) > 0); });
   var liste = actifs.concat(inactifs);
 
