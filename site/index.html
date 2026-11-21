@@ -224,7 +224,8 @@
   tr.detail[hidden] { display: none; }
   .fiche { display: grid; grid-template-columns: repeat(4, minmax(0, .75fr)) minmax(0, 3.2fr); gap: 10px; padding: 12px; }
   .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; gap: 6px; min-height: 150px; }
-  .stat .lib { margin-bottom: 4px; }
+  /* Titres sur deux lignes réservées : photos et valeurs alignées d'un encart à l'autre */
+  .stat .lib { margin-bottom: 4px; min-height: 2.9em; display: flex; align-items: center; justify-content: center; }
   .stat .val { margin-top: 18px; }
   .stat .lib { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; }
   .stat .val { font-size: 26px; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.1; }
@@ -304,7 +305,7 @@
     .courbe { grid-column: 1 / -1; }
     .stat { min-height: 0; padding: 10px 6px; }
     .stat .val { font-size: 20px; }
-    .stat .lib { font-size: 10px; }
+    .stat .lib { font-size: 10px; min-height: 0; }
     .compte { justify-content: center; text-align: center; }
     .compte-blocs .bloc { min-width: 48px; }
     .compte-blocs .n { font-size: 20px; }
