@@ -623,7 +623,7 @@ function carteJamaisAffronte(nom, hist, classes) {
     if (j['Joueur'] !== nom && !vus[j['Joueur']]) { cible = j; rangCible = joue ? rang : 0; return true; }
     return false;
   });
-  var titre = 'Joueur évité';
+  var titre = 'Match attendu';
   if (!cible) {
     return '<div class="stat vide-stat"><div class="lib">' + titre + '</div>' +
       '<div class="nomstat">A affronté tout le monde</div></div>';
